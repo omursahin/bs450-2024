@@ -53,4 +53,48 @@ public class DIFTest {
         int[] arr = {1};
         assertThat(countPositive(arr), equalTo(1));
     }
+	
+	
+    @Test
+    public void lastZero_failure() {
+        int[] arr = {0, 0};
+        assertThat(lastZero_fix1(arr), equalTo(1));
+    }
+
+    @Test
+    public void lastZero_defectNotExecuted() {
+        assertThrows(NullPointerException.class, () -> {
+            lastZero_fix1(null);
+        });
+    }
+
+    @Test
+    public void lastZero_defectExecuted_noInfection() {
+        int[] arr = {1};
+        assertThat(lastZero_fix1(arr), equalTo(-1));
+    }
+
+    @Test
+    public void lastZero_defectExecuted_infectionCaused_noFailure() {
+        int[] arr = {0, 1};
+        assertThat(lastZero_fix1(arr), equalTo(0));
+    }
+
+    @Test
+    public void oddOrPos_failure() {
+        int[] arr = {-1};
+        assertThat(oddOrPos(arr), equalTo(1));
+    }
+
+    @Test
+    public void oddOrPoss_defectNotExecuted() {
+        int[] arr = {};
+        assertThat(oddOrPos(arr), equalTo(0));
+    }
+
+    @Test
+    public void oddOrPos_defectExecuted_noInfection() {
+        int[] arr = {1};
+        assertThat(oddOrPos(arr), equalTo(1));
+    }
 }
