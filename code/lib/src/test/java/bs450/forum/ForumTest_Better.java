@@ -2,23 +2,28 @@ package bs450.forum;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class ForumTest_Better {
 
     @Test
     public void shouldNotLoginBannedUser() {
-        // Given a forum with registered users
-        Forum forum = makeForum();
+        // Given a forum with a registered user
+        Forum forum = new Forum();
+        registerUserWithUsername(forum, "billy");
 
         // When the user is banned
         forum.ban("billy");
 
         // Then the user cannot login
         boolean loggedIn = forum.login("billy");
-        assertFalse(loggedIn);
+        assertThat(loggedIn, equalTo(false));
     }
 
     @Test
@@ -27,42 +32,171 @@ public class ForumTest_Better {
         Forum forum = new Forum();
 
         // When a user is registered
-        forum.registerUser("John Egan", "captain", "j.egan@example.com");
+        registerUserWithUsername(forum, "captain");
 
-        // Then can get the user
-        assertNotNull(forum.getUser("captain"));
+        // Then can get the username
+        assertThat(forum.getUsernames(), contains("captain"));
     }
 
     @Test
-    public void testBan() {
-        Forum forum = makeForum();
-        for (String username : forum.getUsernames()) {
-            forum.ban(username);
-        }
-        for (String username : forum.getUsernames()) {
-            User user = forum.getUser(username);
-            assertTrue(user.isBanned());
-        }
-    }
-
-    @Test
-    public void testGetMostProfilicPoster() {
-        Forum forum = makeForum();
-        makePosts(forum);
-        assertThat(forum.getUser(forum.getMostProlificUser()).numPostsMade(), equalTo(2));
-    }
-
-    Forum makeForum() {
+    public void shouldNotLetBannedUsersPost() {
+        // Given a forum with a registered user and no existing posts
         Forum forum = new Forum();
-        forum.registerUser("Billy Sharp", "billy", "b.sharp@example.com");
-        forum.registerUser("Iliman NDiaye", "ili", "i.ndiaye@example.com");
-        forum.registerUser("Chris Basham", "bash", "c.basham@example.com");
-        return forum;
+        registerUserWithUsername(forum, "billy");
+
+        // When the user is banned, and then posts
+        forum.ban("billy");
+        makePostByUsername(forum, "billy");
+
+        // Then the number of posts made by the user is zero (i.e., the post was not made)
+        int numPosts = forum.getPostsByUser("billy").size();
+        assertThat(numPosts, equalTo(0));
     }
 
-    void makePosts(Forum forum) {
-        forum.post("bash", "Billy Sharp scores goals", "We got Billy Sharp, Billy Sharp. We got Billy Sharp");
-        forum.post("bash", "Boxing Day", "Hark now hear, United sing, the Wednesday Ran Away");
-        forum.post("billy", "Bladesmen", "We are Bladesmen, super Bladesmen, we are Blademen, from the Lane");
+    @Test
+    public void shouldComputeMostProlificPoster() {
+        // Given a forum with two registered users and no existing posts
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "bash", "c.basham@example.com");
+
+        // When one post is made by billy
+        makePostByUsername(forum, "billy");
+
+        // Then billy is the most prolific poster
+        assertThat(forum.getMostProlificUser(), equalTo("billy"));
+
+        // But when more (two) posts are made by another user – bash
+        makePostByUsername(forum, "bash");
+        makePostByUsername(forum, "bash");
+
+        // Then bash is the most prolific poster
+        assertThat(forum.getMostProlificUser(), equalTo("bash"));
+    }
+
+    @Test
+    public void shouldHaveUserNameFollowingRegistering() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "bash", "c.basham@example.com");
+
+        // Then that username should be in the list of registered users
+        Set<String> usernames = forum.getUsernames();
+        assertThat(usernames.size(), equalTo(2));
+        assertThat(usernames, containsInAnyOrder("bash", "billy"));
+    }
+
+    @Test
+    public void shouldNotRegisterUsernameThatAlreadyExists() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+
+        // Then that username cannot be registered again
+        assertThrows(UserNameAlreadyExistsException.class, () -> {
+            forum.registerUser("doesn't matter", "billy", "doesn't matter");
+        });
+    }
+
+    @Test
+    public void shouldNotRegisterEmailAddressThatAlreadyExists() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+
+        // Then that email address cannot be registered again
+        assertThrows(EmailAddressAlreadyExistsException.class, () -> {
+            forum.registerUser("doesn't matter", "doesn't matter", "b.sharp@example.com");
+        });
+    }
+
+    @Test
+    public void shouldSuccessfullyChangeUsername() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsername(forum, "billy");
+
+        // Then changing their username to one not already used is successful
+        assertThat(forum.changeUsername("billy", "William"), equalTo(true));
+    }
+
+    @Test
+    public void shouldNotSuccessfullyChangeUsernameIfAlreadyInUse() {
+        // Given a forum with two registered users
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "bash", "c.basham@example.com");
+
+        // Then one user changing their user name to that of an existing user fails
+        assertThat(forum.changeUsername("billy", "bash"), equalTo(false));
+    }
+
+    @Test
+    public void shouldNotSuccessfullyChangeUsernameIfUserDoesNotExist() {
+        // Given a forum with no users
+        Forum forum = new Forum();
+
+        // Then changing the name of an (unknown) user fails
+        assertThrows(UnknownUserException.class, () -> {
+            forum.changeUsername("billy", "bash");
+        });
+    }
+
+    @Test
+    public void shouldLoginUser() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsername(forum, "billy");
+
+        // Then the user can successfully login
+        assertThat(forum.login("billy"), equalTo(true));
+    }
+
+    @Test
+    public void shouldLogoutUser() {
+        // Given a forum with one registered user
+        Forum forum = new Forum();
+        registerUserWithUsername(forum, "billy");
+
+        // When the user logins
+        forum.login("billy");
+
+        // Then the user can successfully logout
+        assertThat(forum.logout("billy"), equalTo(true));
+    }
+
+    @Test
+    public void shouldGetPosts() {
+        // Given a forum with two registered users and no existing posts
+        Forum forum = new Forum();
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "billy", "b.sharp@example.com");
+        registerUserWithUsernameAndUniqueEmailAddress(forum, "bash", "c.basham@example.com");
+
+        // When three posts are made, 1 one by billy, 2 by bash
+        makePostByUsername(forum, "billy");
+        makePostByUsername(forum, "bash");
+        makePostByUsername(forum, "bash");
+
+        // Then the total number of posts is three
+        assertThat(forum.getPosts().size(), equalTo(3));
+
+        // Then the number of posts by billy is 1
+        assertThat(forum.getPostsByUser("billy").size(), equalTo(1));
+
+        // Then the number of posts by bash is 2
+        assertThat(forum.getPostsByUser("bash").size(), equalTo(2));
+    }
+
+    void registerUserWithUsername(Forum forum, String username) {
+        forum.registerUser("doesn't matter", username, "doesn't matter");
+    }
+
+    void registerUserWithUsernameAndUniqueEmailAddress(Forum forum, String username, String emailAddress) {
+        forum.registerUser("doesn't matter", username, emailAddress);
+    }
+
+    void makePostByUsername(Forum forum, String username) {
+        forum.post(username, "doesn't matter", "doesn't matter");
     }
 }
